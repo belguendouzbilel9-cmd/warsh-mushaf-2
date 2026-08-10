@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>المصحف الإلكتروني — رواية ورش عن نافع</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="مصحف ورش">
+<meta name="theme-color" content="#0E1C2E">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-900:#0E1C2E;
+    --ink-800:#132840;
+    --gold-500:#C9A227;
+    --gold-300:#E4C669;
+    --teal-600:#1F4B4A;
+    --parchment:#F6EFDD;
+    --parchment-dim:#EDE3C8;
+    --line:rgba(201,162,39,0.28);
+    --chrome-h:64px;
+    --safe-t:env(safe-area-inset-top,0px);
+    --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:var(--ink-900);
+    font-family:'Tajawal',sans-serif;
+    color:var(--parchment);
+  }
+  #app{position:fixed; inset:0; display:flex; flex-direction:column;}
+
+  /* ---------- Top bar ---------- */
+  header{
+    height:calc(var(--chrome-h) + var(--safe-t));
+    padding-top:var(--safe-t);
+    display:flex; align-items:center; justify-content:space-between;
+    padding-inline:14px;
+    background:linear-gradient(180deg, var(--ink-800), var(--ink-900));
+    border-bottom:1px solid var(--line);
+    flex:0 0 auto;
+    z-index:20;
+    transition:transform .35s ease, opacity .35s ease;
+  }
+  header.hidden{transform:translateY(-115%);}
+  .brand{display:flex; align-items:center; gap:10px; min-width:0;}
+  .brand .mark{
+    font-family:'Aref Ruqaa',serif; font-size:22px; color:var(--gold-300);
+    line-height:1;
+  }
+  .brand .txt{display:flex; flex-direction:column; line-height:1.15; min-width:0;}
+  .brand .txt b{font-size:14.5px; font-weight:700; color:var(--parchment); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .brand .txt span{font-size:11px; color:var(--gold-300); opacity:.85;}
+  .icon-btn{
+    width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,0.05); border:1px solid var(--line);
+    color:var(--parchment); cursor:pointer; flex:0 0 auto;
+  }
+  .icon-btn:active{background:rgba(201,162,39,0.22);}
+  .icon-btn svg{width:18px; height:18px;}
+  .top-actions{display:flex; gap:8px;}
+
+  /* ---------- Viewer ---------- */
+  #viewerWrap{
+    flex:1 1 auto; position:relative; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(201,162,39,0.10), transparent 55%),
+      var(--ink-900);
+    touch-action:pan-y;
+  }
+  #pageCanvas{
+    background:#fff;
+    box-shadow:0 10px 40px rgba(0,0,0,0.55);
+    border-radius:3px;
+    max-width:100%; max-height:100%;
+    transition:filter .3s ease;
+  }
+  .comfort #pageCanvas{ filter:brightness(.88) contrast(1.06) sepia(.06); }
+
+  #centerLoader{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+    background:var(--ink-900); z-index:5;
+  }
+  .ring{
+    width:64px; height:64px; border-radius:50%;
+    border:3px solid rgba(201,162,39,0.2);
+    border-top-color:var(--gold-500);
+    animation:spin 1s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loadPct{font-size:13px; color:var(--gold-300); letter-spacing:.5px;}
+  #loadLabel{font-size:13px; color:rgba(246,239,221,0.6);}
+
+  #filePicker{
+    position:absolute; inset:0; display:none; z-index:6;
+    flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    background:var(--ink-900); text-align:center; padding:24px;
+  }
+  #filePicker.show{display:flex;}
+  #filePicker .mark{font-family:'Aref Ruqaa',serif; font-size:34px; color:var(--gold-300);}
+  #filePicker p{max-width:320px; font-size:13.5px; line-height:1.9; color:rgba(246,239,221,0.75); margin:0;}
+  .pick-btn{
+    background:var(--gold-500); color:var(--ink-900); border:none;
+    font-family:'Tajawal'; font-weight:700; font-size:14px;
+    padding:12px 26px; border-radius:999px; cursor:pointer;
+  }
+  .pick-btn:active{background:var(--gold-300);}
+
+  /* tap zones for prev/next (invisible, large) */
+  .tapzone{position:absolute; top:0; bottom:0; width:30%; z-index:3;}
+  .tapzone.right{right:0;} /* right side = previous page (start of RTL book) */
+  .tapzone.left{left:0;}   /* left side = next page */
+
+  /* ---------- Bottom bar ---------- */
+  footer{
+    flex:0 0 auto;
+    padding:10px 14px calc(10px + var(--safe-b));
+    background:linear-gradient(0deg, var(--ink-800), var(--ink-900));
+    border-top:1px solid var(--line);
+    display:flex; flex-direction:column; gap:10px;
+    z-index:20;
+    transition:transform .35s ease;
+  }
+  footer.hidden{transform:translateY(115%);}
+
+  .progress-row{display:flex; align-items:center; gap:10px;}
+  .progress-track{
+    flex:1; height:5px; border-radius:4px; background:rgba(255,255,255,0.08);
+    position:relative; overflow:hidden;
+  }
+  .progress-fill{
+    position:absolute; inset-block:0; right:0; /* fills from right since RTL/page1 starts right */
+    background:linear-gradient(90deg, var(--gold-300), var(--gold-500));
+    border-radius:4px;
+  }
+  .juz-label{font-size:11px; color:var(--gold-300); white-space:nowrap; min-width:64px; text-align:center;}
+
+  .controls-row{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .nav-btn{
+    display:flex; align-items:center; gap:6px;
+    background:rgba(255,255,255,0.05); border:1px solid var(--line);
+    color:var(--parchment); font-family:'Tajawal'; font-size:13px; font-weight:500;
+    padding:9px 16px; border-radius:999px; cursor:pointer;
+  }
+  .nav-btn:active{background:rgba(201,162,39,0.22);}
+  .nav-btn svg{width:15px; height:15px;}
+
+  .page-jump{
+    display:flex; align-items:center; gap:6px;
+    background:rgba(255,255,255,0.05); border:1px solid var(--line);
+    border-radius:999px; padding:5px 6px 5px 12px;
+  }
+  .page-jump input{
+    width:46px; background:transparent; border:none; color:var(--parchment);
+    font-family:'Tajawal'; font-weight:700; text-align:center; font-size:14px; outline:none;
+  }
+  .page-jump span{font-size:11px; color:rgba(246,239,221,0.55);}
+  .page-jump button{
+    background:var(--gold-500); color:var(--ink-900); border:none; font-weight:700;
+    font-size:12px; padding:6px 12px; border-radius:999px; cursor:pointer; font-family:'Tajawal';
+  }
+
+  /* ---------- Side panel (jump menu) ---------- */
+  #overlay{position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:29; display:none;}
+  #overlay.show{display:block;}
+  #panel{
+    position:fixed; top:0; bottom:0; right:0; width:min(82vw,320px);
+    background:var(--ink-800); z-index:30; transform:translateX(100%);
+    transition:transform .3s ease; padding:calc(18px + var(--safe-t)) 18px 18px;
+    display:flex; flex-direction:column; gap:16px; border-left:1px solid var(--line);
+    overflow-y:auto;
+  }
+  #panel.show{transform:translateX(0);}
+  #panel h3{margin:0; font-size:15px; color:var(--gold-300); font-weight:700;}
+  .panel-btn{
+    display:flex; align-items:center; justify-content:space-between;
+    background:rgba(255,255,255,0.04); border:1px solid var(--line); color:var(--parchment);
+    padding:12px 14px; border-radius:12px; font-size:13.5px; cursor:pointer; font-family:'Tajawal';
+  }
+  .panel-btn:active{background:rgba(201,162,39,0.18);}
+  .panel-note{font-size:11.5px; color:rgba(246,239,221,0.5); line-height:1.8;}
+
+  ::selection{background:rgba(201,162,39,0.35);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header id="header">
+    <div class="brand">
+      <span class="mark">﷽</span>
+      <div class="txt">
+        <b>المصحف الإلكتروني — رواية ورش</b>
+        <span id="pageIndicator">جاري التحميل…</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="icon-btn" id="btnDownload" title="تحميل نسخة PDF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+      </div>
+      <div class="icon-btn" id="btnInstall" title="تثبيت التطبيق" style="display:none; background:rgba(201,162,39,0.16); border-color:var(--gold-500);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+      </div>
+      <div class="icon-btn" id="btnComfort" title="وضع الإضاءة المريحة">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v1M12 20v1M4.2 4.2l.8.8M19 19l.8.8M3 12h1M20 12h1M4.2 19.8l.8-.8M19 5l.8-.8"/><circle cx="12" cy="12" r="4.5"/></svg>
+      </div>
+      <div class="icon-btn" id="btnMenu" title="القائمة">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <div id="installBanner" style="display:none; flex:0 0 auto; align-items:center; justify-content:space-between; gap:10px; padding:9px 14px; background:linear-gradient(90deg, rgba(201,162,39,0.16), rgba(201,162,39,0.06)); border-bottom:1px solid var(--line); font-size:12.5px;">
+    <span id="installBannerText" style="line-height:1.7;">ثبّت المصحف كتطبيق على شاشتك الرئيسية لفتحه بضغطة واحدة</span>
+    <div style="display:flex; gap:8px; flex:0 0 auto;">
+      <button id="installBannerBtn" style="background:var(--gold-500); color:var(--ink-900); border:none; font-weight:700; font-size:12px; padding:7px 14px; border-radius:999px; cursor:pointer; font-family:'Tajawal'; white-space:nowrap;">تثبيت</button>
+      <button id="installBannerClose" style="background:transparent; color:rgba(246,239,221,0.6); border:none; font-size:16px; cursor:pointer; padding:0 4px;">✕</button>
+    </div>
+  </div>
+
+  <div id="iosInstallModal" style="display:none; position:fixed; inset:0; z-index:40; background:rgba(0,0,0,0.6); align-items:flex-end; justify-content:center;">
+    <div style="background:var(--ink-800); border-top:1px solid var(--line); border-radius:18px 18px 0 0; padding:22px 20px calc(22px + var(--safe-b)); max-width:420px; width:100%;">
+      <h3 style="margin:0 0 12px; font-size:15px; color:var(--gold-300);">تثبيت التطبيق على آيفون</h3>
+      <p style="font-size:13px; line-height:2; color:rgba(246,239,221,0.85); margin:0 0 16px;">
+        1. اضغط على أيقونة المشاركة <b>⬆️</b> في أسفل شاشة Safari<br>
+        2. اختر <b>"إضافة إلى الشاشة الرئيسية"</b><br>
+        3. اضغط <b>"إضافة"</b> — وستظهر أيقونة المصحف على شاشتك مباشرة
+      </p>
+      <button id="iosModalClose" style="width:100%; background:var(--gold-500); color:var(--ink-900); border:none; font-weight:700; font-size:14px; padding:11px; border-radius:999px; cursor:pointer; font-family:'Tajawal';">فهمت</button>
+    </div>
+  </div>
+
+  <div id="viewerWrap">
+    <div id="centerLoader">
+      <div class="ring"></div>
+      <div id="loadLabel">جارٍ فتح المصحف…</div>
+      <div id="loadPct">0%</div>
+    </div>
+
+    <div id="filePicker">
+      <span class="mark">﷽</span>
+      <p>تعذّر تحميل المصحف — تأكد من اتصالك بالإنترنت ثم حاول مرة أخرى.</p>
+      <button class="pick-btn" id="btnPickFile">إعادة المحاولة</button>
+      <input type="file" id="fileInput" accept="application/pdf" style="display:none;">
+    </div>
+
+    <div class="tapzone right" id="tapPrev"></div>
+    <div class="tapzone left" id="tapNext"></div>
+    <canvas id="pageCanvas"></canvas>
+  </div>
+
+  <footer id="footer">
+    <div class="progress-row">
+      <span class="juz-label" id="juzLabel">—</span>
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+    <div class="controls-row">
+      <button class="nav-btn" id="btnNext">
+        التالية
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="page-jump">
+        <input type="number" id="jumpInput" min="1" placeholder="صفحة">
+        <span>/ <span id="totalPagesLbl">—</span></span>
+        <button id="btnJump">اذهب</button>
+      </div>
+      <button class="nav-btn" id="btnPrev">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg>
+        السابقة
+      </button>
+    </div>
+  </footer>
+</div>
+
+<div id="overlay"></div>
+<div id="panel">
+  <h3>الانتقال السريع</h3>
+  <div class="panel-btn" id="btnResume">
+    <span>متابعة من آخر صفحة محفوظة</span><span id="resumeAt">—</span>
+  </div>
+  <div class="panel-btn" id="btnStart">
+    <span>الانتقال إلى أول صفحة</span><span>1</span>
+  </div>
+  <div class="panel-btn" id="btnFullscreen">
+    <span>عرض ملء الشاشة</span><span>⤢</span>
+  </div>
+  <div class="panel-btn" id="btnHideChrome">
+    <span>إخفاء الأشرطة أثناء القراءة</span><span>◐</span>
+  </div>
+
+  <h3 style="margin-top:6px;">الانتقال للجزء</h3>
+  <div id="juzGrid" style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"></div>
+  <p class="panel-note">⚠️ ترقيم الأجزاء هنا تقريبي معتمد على الترقيم المعتاد للمصحف (٦٠٤ صفحة)، ولم يُراجَع صفحة بصفحة على هذه الطبعة تحديدًا برواية ورش. لو محتاج دقة تامة، راجع الصفحة يدويًا.</p>
+
+  <p class="panel-note">يُحفَظ رقم الصفحة الحالية تلقائيًا على هذا الجهاز، بحيث تتابع القراءة من حيث توقفت في المرة القادمة.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const PDF_PARTS = [
+  { file: "warsh-mushaf-part1.pdf", start: 1,   end: 76 },
+  { file: "warsh-mushaf-part2.pdf", start: 77,  end: 152 },
+  { file: "warsh-mushaf-part3.pdf", start: 153, end: 228 },
+  { file: "warsh-mushaf-part4.pdf", start: 229, end: 304 },
+  { file: "warsh-mushaf-part5.pdf", start: 305, end: 380 },
+  { file: "warsh-mushaf-part6.pdf", start: 381, end: 456 },
+  { file: "warsh-mushaf-part7.pdf", start: 457, end: 532 },
+  { file: "warsh-mushaf-part8.pdf", start: 533, end: 604 }
+];
+const STORAGE_KEY = "warsh:lastPage";
+
+let currentPage = 1, totalPages = PDF_PARTS[PDF_PARTS.length-1].end, rendering = false, pendingPage = null;
+const loadedDocs = {}; // partIndex -> pdfDoc
+let loadingPartPromises = {};
+const canvas = document.getElementById('pageCanvas');
+const ctx = canvas.getContext('2d');
+const el = id => document.getElementById(id);
+
+function partIndexForPage(num){
+  return PDF_PARTS.findIndex(p => num >= p.start && num <= p.end);
+}
+
+async function getDocForPart(partIdx){
+  if(loadedDocs[partIdx]) return loadedDocs[partIdx];
+  if(loadingPartPromises[partIdx]) return loadingPartPromises[partIdx];
+  const part = PDF_PARTS[partIdx];
+  loadingPartPromises[partIdx] = pdfjsLib.getDocument({url: part.file}).promise.then(doc => {
+    loadedDocs[partIdx] = doc;
+    delete loadingPartPromises[partIdx];
+    return doc;
+  });
+  return loadingPartPromises[partIdx];
+}
+
+function prefetchNeighbors(partIdx){
+  if(partIdx+1 < PDF_PARTS.length) getDocForPart(partIdx+1).catch(()=>{});
+}
+
+// ---------- storage helpers (never localStorage) ----------
+async function saveLastPage(p){
+  try{ if(window.storage) await window.storage.set(STORAGE_KEY, String(p), false); }catch(e){}
+}
+async function loadLastPage(){
+  try{
+    if(window.storage){
+      const r = await window.storage.get(STORAGE_KEY, false);
+      if(r && r.value) return parseInt(r.value,10);
+    }
+  }catch(e){}
+  return null;
+}
+
+// ---------- loading ----------
+async function loadFromUrl(){
+  try{
+    el('loadLabel').textContent = 'جارٍ فتح الصفحة الأولى…';
+    await getDocForPart(0);
+    await onPdfReady();
+  }catch(e){
+    console.warn('تعذر التحميل التلقائي', e);
+    el('centerLoader').style.display='none';
+    el('filePicker').classList.add('show');
+  }
+}
+
+async function onPdfReady(){
+  el('totalPagesLbl').textContent = totalPages;
+  el('centerLoader').style.display = 'none';
+  const last = await loadLastPage();
+  if(last && last>=1 && last<=totalPages){
+    el('resumeAt').textContent = last;
+    currentPage = last;
+  } else {
+    el('resumeAt').textContent = 'لا توجد بعد';
+  }
+  renderPage(currentPage);
+}
+
+// ---------- rendering ----------
+async function renderPage(num){
+  num = Math.min(Math.max(num,1), totalPages);
+  if(rendering){ pendingPage = num; return; }
+  rendering = true;
+  try{
+    const partIdx = partIndexForPage(num);
+    const part = PDF_PARTS[partIdx];
+    el('loadLabel').textContent = 'جارٍ تحميل هذا الجزء من المصحف…';
+    el('centerLoader').style.display = loadedDocs[partIdx] ? 'none' : 'flex';
+    const doc = await getDocForPart(partIdx);
+    el('centerLoader').style.display = 'none';
+    prefetchNeighbors(partIdx);
+    const localPageNum = num - part.start + 1;
+    const page = await doc.getPage(localPageNum);
+    const wrap = document.getElementById('viewerWrap');
+    const availW = wrap.clientWidth * 0.94;
+    const availH = wrap.clientHeight * 0.96;
+    const base = page.getViewport({scale:1});
+    const scale = Math.min(availW/base.width, availH/base.height) * (window.devicePixelRatio||1);
+    const viewport = page.getViewport({scale});
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = (viewport.width/(window.devicePixelRatio||1))+'px';
+    canvas.style.height = (viewport.height/(window.devicePixelRatio||1))+'px';
+    await page.render({canvasContext:ctx, viewport}).promise;
+    applySharpen(ctx, canvas.width, canvas.height);
+    currentPage = num;
+    updateChrome();
+    saveLastPage(num);
+  }catch(e){ console.error(e); el('centerLoader').style.display = 'none'; }
+  rendering = false;
+  if(pendingPage!==null){ const p=pendingPage; pendingPage=null; renderPage(p); }
+}
+
+function updateChrome(){
+  el('pageIndicator').textContent = `الصفحة ${toArabicDigits(currentPage)} من ${toArabicDigits(totalPages)}`;
+  el('jumpInput').value = currentPage;
+  const pct = (currentPage/totalPages)*100;
+  el('progressFill').style.width = pct.toFixed(2)+'%';
+  const juzApprox = Math.max(1, Math.min(30, Math.ceil((currentPage/totalPages)*30)));
+  el('juzLabel').textContent = 'الجزء ≈ ' + toArabicDigits(juzApprox);
+}
+function toArabicDigits(n){
+  return String(n).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+}
+
+// ---------- clarity boost: contrast stretch + unsharp mask ----------
+// The source scan is low-resolution, so this can't add real detail — but boosting
+// contrast on the text edges and sharpening them makes letters read much crisper.
+function applySharpen(ctx, w, h){
+  try{
+    const contrast = 1.28;   // pulls dark ink darker and paper whiter
+    const sharpenAmt = 0.55; // 0 = off, 1 = strong
+    const src = ctx.getImageData(0, 0, w, h);
+    const s = src.data;
+
+    // pass 1: contrast stretch around midpoint 128
+    for(let p=0; p<s.length; p+=4){
+      s[p]   = (s[p]   - 128) * contrast + 128;
+      s[p+1] = (s[p+1] - 128) * contrast + 128;
+      s[p+2] = (s[p+2] - 128) * contrast + 128;
+    }
+
+    // pass 2: 3x3 unsharp (laplacian) kernel on the contrast-boosted data
+    const out = new Uint8ClampedArray(s.length);
+    for(let y=0; y<h; y++){
+      for(let x=0; x<w; x++){
+        const i = (y*w + x) * 4;
+        if(x===0 || y===0 || x===w-1 || y===h-1){
+          out[i]=s[i]; out[i+1]=s[i+1]; out[i+2]=s[i+2]; out[i+3]=s[i+3];
+          continue;
+        }
+        for(let c=0;c<3;c++){
+          const center = s[i+c];
+          const up   = s[i - w*4 + c];
+          const down = s[i + w*4 + c];
+          const left = s[i - 4 + c];
+          const right= s[i + 4 + c];
+          const lap = center*4 - up - down - left - right;
+          out[i+c] = center + sharpenAmt * lap;
+        }
+        out[i+3] = s[i+3];
+      }
+    }
+    src.data.set(out);
+    ctx.putImageData(src, 0, 0);
+  }catch(e){ /* non-fatal: skip enhancement if it fails */ }
+}
+
+// ---------- navigation ----------
+// RTL mushaf: page numbers increase moving forward through the book (toward the left side visually).
+function nextPage(){ if(currentPage < totalPages) renderPage(currentPage+1); }
+function prevPage(){ if(currentPage > 1) renderPage(currentPage-1); }
+
+el('btnNext').addEventListener('click', nextPage);
+el('btnPrev').addEventListener('click', prevPage);
+el('tapNext').addEventListener('click', nextPage);
+el('tapPrev').addEventListener('click', prevPage);
+
+el('btnJump').addEventListener('click', ()=>{
+  const v = parseInt(el('jumpInput').value,10);
+  if(v) renderPage(v);
+});
+el('jumpInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ const v=parseInt(e.target.value,10); if(v) renderPage(v);} });
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft') nextPage();
+  if(e.key==='ArrowRight') prevPage();
+});
+
+// swipe
+let touchX=null;
+const wrap = document.getElementById('viewerWrap');
+wrap.addEventListener('touchstart', e=>{ touchX = e.touches[0].clientX; }, {passive:true});
+wrap.addEventListener('touchend', e=>{
+  if(touchX===null) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  if(Math.abs(dx) > 40){ dx < 0 ? nextPage() : prevPage(); }
+  touchX = null;
+}, {passive:true});
+
+window.addEventListener('resize', ()=> renderPage(currentPage));
+
+// ---------- comfort / night mode ----------
+el('btnComfort').addEventListener('click', ()=>{
+  document.body.classList.toggle('comfort');
+});
+
+// ---------- menu panel ----------
+const overlay = el('overlay'), panel = el('panel');
+function openPanel(){ overlay.classList.add('show'); panel.classList.add('show'); }
+function closePanel(){ overlay.classList.remove('show'); panel.classList.remove('show'); }
+el('btnMenu').addEventListener('click', openPanel);
+overlay.addEventListener('click', closePanel);
+
+el('btnResume').addEventListener('click', async ()=>{
+  const last = await loadLastPage();
+  if(last) renderPage(last);
+  closePanel();
+});
+el('btnStart').addEventListener('click', ()=>{ renderPage(1); closePanel(); });
+
+// ---------- Juz quick-jump (approximate — see disclaimer in panel) ----------
+// Standard reference page numbers for the common 604-page Mushaf layout.
+// Not verified page-by-page against this specific Warsh printing.
+const JUZ_START_PAGES = [1,22,42,62,82,102,121,142,162,182,201,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522,542,562,582];
+(function buildJuzGrid(){
+  const grid = el('juzGrid');
+  JUZ_START_PAGES.forEach((pageNum, idx) => {
+    const btn = document.createElement('div');
+    btn.className = 'panel-btn';
+    btn.style.cssText = 'flex-direction:column; padding:8px 4px; text-align:center; gap:2px;';
+    btn.innerHTML = `<span style="font-size:11px; color:var(--gold-300);">جزء</span><span style="font-weight:700;">${toArabicDigits(idx+1)}</span>`;
+    btn.addEventListener('click', () => {
+      renderPage(Math.min(pageNum, totalPages));
+      closePanel();
+    });
+    grid.appendChild(btn);
+  });
+})();
+el('btnFullscreen').addEventListener('click', ()=>{
+  if(!document.fullscreenElement){ document.documentElement.requestFullscreen?.(); }
+  else { document.exitFullscreen?.(); }
+  closePanel();
+});
+let chromeHidden = false;
+el('btnHideChrome').addEventListener('click', ()=>{
+  chromeHidden = !chromeHidden;
+  el('header').classList.toggle('hidden', chromeHidden);
+  el('footer').classList.toggle('hidden', chromeHidden);
+  closePanel();
+});
+// tap center of page to toggle chrome quickly too
+wrap.addEventListener('dblclick', ()=>{
+  chromeHidden = !chromeHidden;
+  el('header').classList.toggle('hidden', chromeHidden);
+  el('footer').classList.toggle('hidden', chromeHidden);
+});
+
+// ---------- retry (replaces old single-file picker) ----------
+el('btnPickFile').addEventListener('click', ()=> {
+  el('filePicker').classList.remove('show');
+  el('centerLoader').style.display = 'flex';
+  loadFromUrl();
+});
+
+// ---------- download all parts ----------
+el('btnDownload').addEventListener('click', () => {
+  PDF_PARTS.forEach((part, i) => {
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = part.file;
+      a.download = `مصحف-ورش-جزء-${i+1}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }, i * 700);
+  });
+});
+
+// ---------- install / PWA ----------
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+let deferredPrompt = null;
+const DISMISS_KEY = "warsh:installDismissed";
+
+async function wasDismissed(){
+  try{ if(window.storage){ const r = await window.storage.get(DISMISS_KEY, false); return !!(r && r.value); } }catch(e){}
+  return false;
+}
+async function setDismissed(){
+  try{ if(window.storage) await window.storage.set(DISMISS_KEY, "1", false); }catch(e){}
+}
+
+async function initInstallUI(){
+  if(isStandalone) return; // already installed/running as app
+  if(await wasDismissed()) return;
+
+  if(isIOS){
+    el('btnInstall').style.display = 'flex';
+    el('installBanner').style.display = 'flex';
+  }
+  // Android/Chrome: wait for beforeinstallprompt
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  el('btnInstall').style.display = 'flex';
+  el('installBanner').style.display = 'flex';
+});
+
+async function triggerInstall(){
+  if(isIOS){
+    el('iosInstallModal').style.display = 'flex';
+    return;
+  }
+  if(deferredPrompt){
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    el('btnInstall').style.display = 'none';
+    el('installBanner').style.display = 'none';
+  }
+}
+
+el('btnInstall').addEventListener('click', triggerInstall);
+el('installBannerBtn').addEventListener('click', triggerInstall);
+el('installBannerClose').addEventListener('click', () => {
+  el('installBanner').style.display = 'none';
+  setDismissed();
+});
+el('iosModalClose').addEventListener('click', () => { el('iosInstallModal').style.display = 'none'; });
+
+window.addEventListener('appinstalled', () => {
+  el('btnInstall').style.display = 'none';
+  el('installBanner').style.display = 'none';
+});
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+
+initInstallUI();
+
+// ---------- go ----------
+loadFromUrl();
+</script>
+</body>
+</html>
